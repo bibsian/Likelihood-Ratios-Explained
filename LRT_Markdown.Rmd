@@ -1,0 +1,114 @@
+---
+title: "The Likelihood Ratio Test"
+author: "Andrew Bibian"
+date: "November 23, 2015"
+output: html_document
+---
+
+Today, we're going to be doing some statistical inference wtih a good ole fashion likelihood ratio test (LRT). Some people, especially those like myself who are not statisticians by training but are scientists, may have encountered such a hypothesis testing mehtod when trying to figure out whether your experimental treatment was signficant. If you use R for this, things can get a little confusing pretty fast so we're going to pick apart the process from start to finish and hopefully by the end, you and I both will have a better understanding of what this test is acutally doing.
+
+Now, before we get started I want to set the stage for our psuedo-experiment and simulate some data. This way we can explain how the LRT works by analyzing the data we generated with our simulation. Our psuedo-experiment is made to test the difference in the mean plant size between two groups; one group is our control and the other is our treatment where we added fertilizer.
+```{r}
+# To simulate the data we have to designate how many different groups
+# we have ('control' and 'treatment')
+# And we also have to give our group levels some names
+gr.levels<- c("control", "nutrient")
+```
+
+For each group in our experiment we have $n$ number of indiviaul plants that we measured (this is a balanced experiment).  In data terms, this translates to a variable ($x$) indexing which observations correspond to a given group level.
+```{r}
+# Here we're designating the number of plants that we have
+# size measurements for (the same n for each group)
+n<- 50
+
+# and creating our factor variable 
+x<- rep(gr.levels, each=n)
+print(x[c(1:5, 50:55)])
+
+```
+
+For the sake of getting a significant result, we're going to simulate the data where the mean plant size in each group is different by an order of magnitude. Additionally, we're going to assume the variance within each group is the same.
+```{r}
+# population means for each group (lets say units are in meters)
+pop.mu<-c (0.1, 1.1)
+
+# Creating a vector with the means that corresponds to 
+# our group level variable (x)
+means<- rep(pop.mu, each=n)
+# inspecting the vectors (x) and means 
+print(cbind(x[c(1:5, 50:55)], means[c(1:5, 50:55)]))
+
+# assigning the population variance (assuming variance across groups is equal)
+sigma<- 1.3
+```
+
+Now that we have our variables (or vectors in R) of means and factor levels, we're going to tack on the random noise that you would get if the data were normally distriubed so we can generate our response (or our size measurements, $y$).
+```{r}
+# generating the random noise
+error<- rnorm(n, 0, sigma)
+
+# Creating 
+# model matrix 
+X<- as.matrix(model.matrix(~as.factor(x)-1))
+
+# generating the data
+y<- as.numeric(X %*% as.matrix(pop.mu)+error) # voila!
+
+# Inspecting our vecotr of simulated data: note the difference in values
+# between the first 5 observation for each group
+print(cbind(x[c(1:5, 50:55)], y[c(1:5, 50:55)]))
+```
+
+Although that was a little long winded, I think it's going to help clarify some things as we go through the LRT. And just for show, here's a boxplot of the data we just generated.
+
+```{r, echo=FALSE}
+boxplot(y~x)
+```
+
+So, given our response data ($y$) and our group level ($x$) predictors we can write a simple model to estimate the means between these two groups. Mathematically you get the following,
+
+$$y_{i}=\alpha + \beta*x_{i} + \epsilon_{i}$$
+$$\epsilon_i \sim Normal(0, \sigma^2).$$
+What we just wrote is an effects parameterization and is typically how R is going to strucutre the output when your fitting your statical model. This model estimates a mean for our control group ($\alpha$) and the difference* between the control and our nutrient treatment mean ($\beta$); along with the measurement error ($\epsilon$).  
+
+Now, the underlying idea behind a LRT is to compare the likelihood of a more flexible model (the one where we estimate a different mean for each group) to one that is more restricted (with the cavet that the restricted model is a nested version of the more flexible one). That really just means that we're going to compare the likelihood of our model above, to one where we set one parameter (or more in more complicated models) to 0. For us, that would mean setting $\beta=0$ and getting our restricted model in the following form,
+
+$$y_{i}=\alpha + \epsilon_{i}$$
+$$\epsilon_i \sim Normal(0, \sigma^2).$$
+
+In R, we can estimate the parameters of the restricted (m1) and flexible (m2) models with two lines of code (plus 2 lines to inspect the output).
+```{r}
+# restricted model
+m1<- lm(y~1) # the 1 signifies we're just estimating one grand mean (or our alpha in the equations above)
+
+# Note in the summary above below is called "(Intercept)"
+summary(m1) 
+
+
+# more flexible models 
+m2<- lm(y~x) 
+# this tells the software to estimate a mean for the two groups indexed by our factor 
+# (we get an alpha and a beta now)
+
+# Now in the summary below we have our alpha (or "(Intercept)" estimated with the additional group level mean
+# for our nutrient addition (beta or "xnutrient"))
+summary(m2)
+```
+We'll come back to this summary output in just a moment but first we're going to expand a bit more on what the hypothesis test is for a LRT. 
+
+To do this we're going to have to talk about the likelihoods of our models. First lets lay out what we have to work with. We have two competing models; the null model ( or the resticted version, m1) and our alternative model (or the more flexible, m2). Each of these models has a corresponding likelihood, so let's check those out (to be more precise we're looking at the log likelihoods).
+```{r}
+lapply(list(m1,m2), logLik)
+```
+As we can see the the alternative model has a higher likelihood (or less negative log likelihood) which is what we'd expect given that we're estimating an extra parameter.  The question, and the heart of the hypothesis test, really becomes whether the difference between these two likelihoods is significantly different under the hypothesis that our null model is the true model. The nifty thing about statitics is that we can test this because we can generate a test statistic which is known to follow an established probability distribution (i.e. the $\chi^2$ distribution).
+
+So, you might be wondering what the test statistic is for this test and here's where I'll tell you it has to do with ratio of likelihoods.  Mathmatecally, our test statistic ($D$) is defined as the following,
+$$D=-2log_{e}(\frac{L_{null}}{L_{alt}}).$$
+Where the $L$ stands for the likelihood of the null and alternative models. We can calculate this likelihood ratio and test statistic for our models with the following.
+```{r}
+D<- -2*(logLik(m1)-logLik(m2))
+print(as.numeric(D))
+```
+The only other information we need to have is the difference in the degrees of freedom between the restricted and flexible model. If we check back to our log likelihood output from before, we'll see that that difference is 1 (3 degrees of freedom for the alternative model - 2 degrees of freedom for the null).
+
+
