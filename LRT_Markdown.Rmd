@@ -46,7 +46,7 @@ Now that we have our variables (or vectors in R) of means and factor levels, we'
 ```{r}
 # Adding the random noise and
 # generating data
-y<- rnorm(n*length(gr.levels), means, sigma)
+y<- means + rnorm(n*length(gr.levels), 0, sigma)
 #voila!
 
 ```
