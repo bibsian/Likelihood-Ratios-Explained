@@ -47,11 +47,11 @@ means<- rep(pop.mu, each=n)
 print(cbind(x[c(1:5, 50:55)], means[c(1:5, 50:55)]))
 
 # population variance (assuming variance across groups is equal)
-sigma<- 1.3
+sigma<- 0.25
 
 # Adding the random noise and
 # generating data
-y<- means + rnorm(n*length(gr.levels), 0, sigma)
+y<- rnorm(n*length(gr.levels), means, sigma)
 #voila!
 
 # Inspecting our vecotr of simulated data: note the difference in values
